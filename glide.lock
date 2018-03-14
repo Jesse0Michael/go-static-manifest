@@ -1,0 +1,8 @@
+hash: db831995e6710e55b7a66534a819e320a9403f2898cdc76356a7a3a8571b78b7
+updated: 2018-03-13T10:14:01.308710298-07:00
+imports:
+- name: github.com/grafov/m3u8
+  version: 6ab8f28ed427e7ab787340596709e27ecc4b32db
+- name: github.com/stretchr/testify
+  version: b89eecf5ca5db6d3ba60b237ffe3df7bafb7662f
+testImports: []

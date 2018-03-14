@@ -1,0 +1,6 @@
+package: github.com/jesse0michael/go-static-manifest
+import:
+- package: github.com/stretchr/testify
+  version: master
+- package: github.com/grafov/m3u8
+  version: master
