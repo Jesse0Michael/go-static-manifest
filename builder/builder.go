@@ -1,12 +1,16 @@
 package builder
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/grafov/m3u8"
 )
@@ -62,6 +66,29 @@ func Build(manifest *url.URL, directory string) error {
 	case m3u8.MEDIA:
 		media := playlist.(*m3u8.MediaPlaylist)
 		for i, s := range media.Segments[:media.Count()] {
+
+			if s.Key != nil {
+				keyURL, err := url.Parse(s.URI)
+				if err != nil {
+					return err
+				}
+				resp, err := http.Get(manifest.ResolveReference(keyURL).String())
+				if err != nil {
+					return err
+				}
+
+				body, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					return err
+				}
+
+				err = ioutil.WriteFile(fmt.Sprintf("%s/segment%d.key", directory, i), body, os.ModePerm)
+				if err != nil {
+					return err
+				}
+				s.Key.URI = fmt.Sprintf("%s/segment%d.key", directory, i)
+			}
+
 			relative, err := url.Parse(s.URI)
 			if err != nil {
 				return err
@@ -83,10 +110,84 @@ func Build(manifest *url.URL, directory string) error {
 			s.URI = fmt.Sprintf("segment%d%s", i, filepath.Ext(s.URI))
 		}
 
+		// keys should already be downloaded a the m3u8 rewritten
+		media.Key = nil
+
 		err = ioutil.WriteFile(fmt.Sprintf("%s/media.m3u8", directory), []byte(media.Encode().String()), os.ModePerm)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// DecryptFile decrypts an encrypted file.
+// Equivalent command: openssl aes-128-cbc -K <hex string> -iv <hex string> -d -in segment.ts -out segment-decrypted.ts
+func DecryptFile(iv, key, inputFilepath, outputFilepath string) (err error) {
+	// Strip off the prefix that indicates hex (if present)
+	iv = strings.TrimLeft(iv, "0x")
+	ivBytes, err := hex.DecodeString(iv)
+	if err != nil {
+		return err
+	}
+
+	keyBytes, err := hex.DecodeString(key)
+	if err != nil {
+		return err
+	}
+
+	ciphertext, err := ioutil.ReadFile(inputFilepath)
+	if err != nil {
+		return err
+	}
+
+	block, err := aes.NewCipher(keyBytes)
+	if err != nil {
+		return err
+	}
+
+	// cipher.NewCBCDecrypter can panic on bad inputs, so we catch this and return an error
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("Error while setting up Decrypter: %s", r)
+		}
+	}()
+	stream := cipher.NewCBCDecrypter(block, ivBytes)
+
+	// XORKeyStream can work in-place if the two arguments are the same.
+	stream.CryptBlocks(ciphertext, ciphertext)
+
+	return ioutil.WriteFile(outputFilepath, ciphertext, 0444)
+}
+
+// EncryptFile encrypts a file.
+func EncryptFile(iv, key, inputFilepath, outputFilepath string) error {
+	// Strip off the prefix that indicates hex (if present)
+	iv = strings.TrimLeft(iv, "0x")
+	ivBytes, err := hex.DecodeString(iv)
+	if err != nil {
+		return err
+	}
+
+	keyBytes, err := hex.DecodeString(key)
+	if err != nil {
+		return err
+	}
+
+	block, err := aes.NewCipher(keyBytes)
+	if err != nil {
+		panic(err)
+	}
+
+	clearBytes, err := ioutil.ReadFile(inputFilepath)
+	if err != nil {
+		return err
+	}
+
+	ciphertext := make([]byte, aes.BlockSize+len(clearBytes))
+
+	stream := cipher.NewCFBEncrypter(block, ivBytes)
+	stream.XORKeyStream(ciphertext[aes.BlockSize:], clearBytes)
+
+	return ioutil.WriteFile(outputFilepath, ciphertext, 0444)
 }
