@@ -68,7 +68,7 @@ func Build(manifest *url.URL, directory string) error {
 		for i, s := range media.Segments[:media.Count()] {
 
 			if s.Key != nil {
-				keyURL, err := url.Parse(s.URI)
+				keyURL, err := url.Parse(s.Key.URI)
 				if err != nil {
 					return err
 				}
@@ -86,7 +86,7 @@ func Build(manifest *url.URL, directory string) error {
 				if err != nil {
 					return err
 				}
-				s.Key.URI = fmt.Sprintf("%s/segment%d.key", directory, i)
+				s.Key.URI = fmt.Sprintf("segment%d.key", i)
 			}
 
 			relative, err := url.Parse(s.URI)
@@ -125,7 +125,9 @@ func Build(manifest *url.URL, directory string) error {
 // Equivalent command: openssl aes-128-cbc -K <hex string> -iv <hex string> -d -in segment.ts -out segment-decrypted.ts
 func DecryptFile(iv, key, inputFilepath, outputFilepath string) (err error) {
 	// Strip off the prefix that indicates hex (if present)
-	iv = strings.TrimLeft(iv, "0x")
+	if strings.HasPrefix(iv, "0x") {
+		iv = strings.TrimLeft(iv, "0x")
+	}
 	ivBytes, err := hex.DecodeString(iv)
 	if err != nil {
 		return err
@@ -146,15 +148,7 @@ func DecryptFile(iv, key, inputFilepath, outputFilepath string) (err error) {
 		return err
 	}
 
-	// cipher.NewCBCDecrypter can panic on bad inputs, so we catch this and return an error
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("Error while setting up Decrypter: %s", r)
-		}
-	}()
 	stream := cipher.NewCBCDecrypter(block, ivBytes)
-
-	// XORKeyStream can work in-place if the two arguments are the same.
 	stream.CryptBlocks(ciphertext, ciphertext)
 
 	return ioutil.WriteFile(outputFilepath, ciphertext, 0444)
@@ -162,8 +156,10 @@ func DecryptFile(iv, key, inputFilepath, outputFilepath string) (err error) {
 
 // EncryptFile encrypts a file.
 func EncryptFile(iv, key, inputFilepath, outputFilepath string) error {
-	// Strip off the prefix that indicates hex (if present)
-	iv = strings.TrimLeft(iv, "0x")
+	// Strip off the prefix that indicates
+	if strings.HasPrefix(iv, "0x") {
+		iv = strings.TrimLeft(iv, "0x")
+	}
 	ivBytes, err := hex.DecodeString(iv)
 	if err != nil {
 		return err
@@ -176,18 +172,16 @@ func EncryptFile(iv, key, inputFilepath, outputFilepath string) error {
 
 	block, err := aes.NewCipher(keyBytes)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	clearBytes, err := ioutil.ReadFile(inputFilepath)
+	ciphertext, err := ioutil.ReadFile(inputFilepath)
 	if err != nil {
 		return err
 	}
 
-	ciphertext := make([]byte, aes.BlockSize+len(clearBytes))
-
-	stream := cipher.NewCFBEncrypter(block, ivBytes)
-	stream.XORKeyStream(ciphertext[aes.BlockSize:], clearBytes)
+	stream := cipher.NewCBCEncrypter(block, ivBytes)
+	stream.CryptBlocks(ciphertext, ciphertext)
 
 	return ioutil.WriteFile(outputFilepath, ciphertext, 0444)
 }

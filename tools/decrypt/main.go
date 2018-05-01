@@ -28,10 +28,7 @@ func main() {
 	}
 
 	encodedBytes := make([]byte, hex.EncodedLen(len(keyBytes)))
-	_ = hex.Encode(encodedBytes, keyBytes)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
+	hex.Encode(encodedBytes, keyBytes)
 
 	err = builder.DecryptFile(*iv, string(encodedBytes), *input, *output)
 	if err != nil {
