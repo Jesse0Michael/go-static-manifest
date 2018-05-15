@@ -44,7 +44,7 @@ func Build(manifest *url.URL, directory string) error {
 			if err != nil {
 				return err
 			}
-			v.URI = fmt.Sprintf("variant%d/variant.m3u8", i)
+			v.URI = fmt.Sprintf("variant%d/media.m3u8", i)
 
 			for _, a := range v.Alternatives {
 				alt, err := url.Parse(a.URI)
@@ -55,7 +55,7 @@ func Build(manifest *url.URL, directory string) error {
 				if err != nil {
 					return err
 				}
-				a.URI = fmt.Sprintf("%s-%s-%s-%s/variant.m3u8", a.Type, a.GroupId, a.Name, a.Language)
+				a.URI = fmt.Sprintf("%s-%s-%s-%s/media.m3u8", a.Type, a.GroupId, a.Name, a.Language)
 			}
 		}
 
