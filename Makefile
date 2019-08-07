@@ -7,8 +7,6 @@ endif
 LDFLAGS = -ldflags '-X main.gitSHA=$(shell git rev-parse HEAD)'
 
 all: build test cover
-install-deps:
-	glide install
 build:
 	if [ ! -d bin ]; then mkdir bin; fi
 	$(GO) build $(LDFLAGS) -v -o bin/go-static-manifest
