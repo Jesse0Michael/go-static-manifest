@@ -13,7 +13,7 @@ build:
 	$(GO) build $(LDFLAGS) -v -o bin/go-decrypt-file tools/decrypt/main.go
 	$(GO) build $(LDFLAGS) -v -o bin/go-encrypt-file tools/encrypt/main.go
 fmt:
-	find . -not -path "./vendor/*" -name '*.go' -type f | sed 's#\(.*\)/.*#\1#' | sort -u | xargs -n1 -I {} bash -c "cd {} && goimports -w *.go && gofmt -w -l -s *.go"
+	gofmt -w -l -s *.go
 test:
 	if [ ! -d $(COVERAGEDIR) ]; then mkdir $(COVERAGEDIR); fi
 	$(GO) test -v ./builder -cover -coverprofile=$(COVERAGEDIR)/builder.coverprofile
